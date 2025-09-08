@@ -32,9 +32,9 @@ public class AccountRepository {
 
 		try (PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-			pstmt.setString(1, account.getType().name());
-			pstmt.setString(2, account.getName());
-
+			pstmt.setString(1, account.getAccountNumber());
+			pstmt.setString(2, account.getType().name());
+			pstmt.setString(3, account.getName());
 			if (account.getOwnerUserId() != null) {
 				pstmt.setLong(3, account.getOwnerUserId());
 			} else {
@@ -53,8 +53,8 @@ public class AccountRepository {
 			try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
 				if (generatedKeys.next()) {
 					long newId = generatedKeys.getLong(1);
-					return Account.fromDB(newId, account.getType(), account.getName(), account.getOwnerUserId(),
-							account.getBalance(), account.getCreatedAt());
+					return Account.fromDB(newId, account.getAccountNumber(), account.getType(), account.getName(),
+							account.getOwnerUserId(), account.getBalance(), account.getCreatedAt());
 				} else {
 					throw new SQLException("계좌 생성 실패: ID를 가져올 수 없습니다.");
 				}
@@ -62,6 +62,21 @@ public class AccountRepository {
 		} catch (SQLException e) {
 			throw new RuntimeException("계좌 저장(트랜잭션) 중 오류 발생", e);
 		}
+	}
+
+	public Optional<Account> findByAccountNumber(String accountNumber) {
+		String sql = "SELECT * FROM account WHERE account_number = ?";
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setString(1, accountNumber);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				if (rs.next()) {
+					return Optional.of(mapRowToAccount(rs));
+				}
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return Optional.empty();
 	}
 
 	public List<Account> findAllByUserId(long userId) {
@@ -160,14 +175,8 @@ public class AccountRepository {
 	}
 
 	private Account mapRowToAccount(ResultSet rs) throws SQLException {
-		long id = rs.getLong("id");
-		AccountType type = AccountType.valueOf(rs.getString("type"));
-		String name = rs.getString("name");
-		long ownerUserIdLong = rs.getLong("owner_user_id");
-		Long ownerUserId = rs.wasNull() ? null : ownerUserIdLong;
-		long balance = rs.getLong("balance");
-		java.time.LocalDateTime createdAt = rs.getTimestamp("created_at").toLocalDateTime();
-
-		return Account.fromDB(id, type, name, ownerUserId, balance, createdAt);
+		return Account.fromDB(rs.getLong("id"), rs.getString("account_number"),
+				AccountType.valueOf(rs.getString("type")), rs.getString("name"), (Long) rs.getObject("owner_user_id"),
+				rs.getLong("balance"), rs.getTimestamp("created_at").toLocalDateTime());
 	}
 }

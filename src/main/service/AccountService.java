@@ -3,6 +3,7 @@ package main.service;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 import main.db.DbUtil;
@@ -22,7 +23,8 @@ public class AccountService {
 			// 중복된 계좌가 존재하므로, 에러를 발생시켜 프로세스를 중단시킵니다.
 			throw new IllegalArgumentException("❌ 동일한 이름의 개인계좌가 이미 존재합니다.");
 		});
-		Account newAccount = Account.createPersonal(0, name, ownerUserId);
+		String accountNumber = generateUniqueAccountNumber();
+		Account newAccount = Account.createPersonal(0, accountNumber, name, ownerUserId);
 		return accountRepository.save(newAccount);
 	}
 
@@ -46,9 +48,9 @@ public class AccountService {
 
 			// 2. 비즈니스 로직 수행
 			// - 1단계: 계좌 생성
-			Account groupAccount = Account.createGroup(0, name);
-			Account savedAccount = accountRepository.save(groupAccount, conn); // Connection 객체 전달
-
+			String accountNumber = generateUniqueAccountNumber();
+			Account groupAccount = Account.createGroup(0, accountNumber, name);
+			Account savedAccount = accountRepository.save(groupAccount, conn);
 			// - 2단계: 생성자를 OWNER로 등록
 			GroupMember owner = GroupMember.join(0, savedAccount.getId(), creatorUserId, MemberRole.OWNER);
 			groupRepository.save(owner, conn); // 동일한 Connection 객체 전달
@@ -82,8 +84,8 @@ public class AccountService {
 		}
 	}
 
-	public void changeAccountName(long accountId, String newName, long currentUserId) {
-		Account account = accountRepository.findById(accountId)
+	public void changeAccountName(String accountNumber, String newName, long currentUserId) {
+		Account account = accountRepository.findByAccountNumber(accountNumber)
 				.orElseThrow(() -> new IllegalArgumentException("해당 계좌를 찾을 수 없습니다."));
 
 		boolean hasPermission = false;
@@ -92,7 +94,7 @@ public class AccountService {
 				hasPermission = true;
 			}
 		} else {
-			if (groupRepository.isOwner(accountId, currentUserId)) {
+			if (groupRepository.isOwner(account.getId(), currentUserId)) {
 				hasPermission = true;
 			}
 		}
@@ -100,12 +102,12 @@ public class AccountService {
 		if (!hasPermission) {
 			throw new IllegalStateException("계좌 이름을 변경할 권한이 없습니다.");
 		}
-		accountRepository.updateName(accountId, newName);
+		accountRepository.updateName(account.getId(), newName);
 	}
 
-	public void deleteAccount(long accountId, long currentUserId) {
-		Account account = accountRepository.findById(accountId)
-				.orElseThrow(() -> new IllegalArgumentException("❌ 해당 계좌를 찾을 수 없습니다. (ID: " + accountId + ")"));
+	public void deleteAccount(String accountNumber, long currentUserId) {
+		Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(
+				() -> new IllegalArgumentException("❌ 해당 계좌를 찾을 수 없습니다. (account number: " + accountNumber + ")"));
 
 		boolean hasPermission = false;
 		if (account.getType() == AccountType.PERSONAL) {
@@ -113,7 +115,7 @@ public class AccountService {
 				hasPermission = true;
 			}
 		} else {
-			if (groupRepository.isOwner(accountId, currentUserId)) {
+			if (groupRepository.isOwner(account.getId(), currentUserId)) {
 				hasPermission = true;
 			}
 		}
@@ -126,6 +128,19 @@ public class AccountService {
 //            throw new IllegalStateException("❌ 연결된 거래 내역이 있어 계좌를 삭제할 수 없습니다.");
 //        }
 
-		accountRepository.deleteById(accountId);
+		accountRepository.deleteById(account.getId());
+	}
+
+	private String generateUniqueAccountNumber() {
+		Random random = new Random();
+		while (true) {
+			String part1 = String.format("%03d", random.nextInt(1000));
+			String part2 = String.format("%06d", random.nextInt(1000000));
+			String accountNumber = "110-" + part1 + "-" + part2;
+
+			if (accountRepository.findByAccountNumber(accountNumber).isEmpty()) {
+				return accountNumber;
+			}
+		}
 	}
 }
