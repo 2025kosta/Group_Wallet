@@ -12,6 +12,8 @@ public class Account {
 	/** PK: 계좌 식별자 (nullable: false) */
 	private final long id;
 
+	private final String accountNumber;
+
 	/** 계좌 종류: PERSONAL / GROUP (nullable: false) */
 	private final AccountType type;
 
@@ -29,23 +31,25 @@ public class Account {
 	/** 생성 시각(감사/이력용) (nullable: false) */
 	private final LocalDateTime createdAt;
 
-	private Account(long id, AccountType type, String name, Long ownerUserId, long balance, LocalDateTime createdAt) {
+	private Account(long id, String accountNumber, AccountType type, String name, Long ownerUserId, long balance,
+			LocalDateTime createdAt) {
 		this.id = id;
+		this.accountNumber = accountNumber;
 		this.type = type;
 		this.name = name;
-		this.ownerUserId = ownerUserId; // nullable for GROUP
+		this.ownerUserId = ownerUserId;
 		this.balance = balance;
 		this.createdAt = createdAt;
 	}
 
 	/** 개인 계좌 생성 (초기 잔액 0) */
-	public static Account createPersonal(long id, String name, long ownerUserId) {
-		return new Account(id, AccountType.PERSONAL, name, ownerUserId, 0L, LocalDateTime.now());
+	public static Account createPersonal(long id, String accountNumber, String name, long ownerUserId) {
+		return new Account(id, accountNumber, AccountType.PERSONAL, name, ownerUserId, 0L, LocalDateTime.now());
 	}
 
 	/** 모임 계좌 생성(생성자는 GroupMember로 OWNER 등록 필요, 초기 잔액 0) */
-	public static Account createGroup(long id, String name) {
-		return new Account(id, AccountType.GROUP, name, null, 0L, LocalDateTime.now());
+	public static Account createGroup(long id, String accountNumber, String name) {
+		return new Account(id, accountNumber, AccountType.GROUP, name, null, 0L, LocalDateTime.now());
 	}
 
 	/** 계좌명 변경 */
@@ -68,6 +72,10 @@ public class Account {
 		return id;
 	}
 
+	public String getAccountNumber() {
+		return accountNumber;
+	}
+
 	public AccountType getType() {
 		return type;
 	}
@@ -88,10 +96,9 @@ public class Account {
 		return createdAt;
 	}
 
-	public static Account fromDB(long id, AccountType type, String name, Long ownerUserId, long balance,
-			java.time.LocalDateTime createdAt) {
-		// private 생성자를 호출하여 객체 생성
-		return new Account(id, type, name, ownerUserId, balance, createdAt);
+	public static Account fromDB(long id, String accountNumber, AccountType type, String name, Long ownerUserId,
+			long balance, java.time.LocalDateTime createdAt) {
+		return new Account(id, accountNumber, type, name, ownerUserId, balance, createdAt);
 	}
 
 }

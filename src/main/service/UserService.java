@@ -3,6 +3,7 @@ package main.service;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Optional;
+import java.util.Random;
 import java.util.regex.Pattern;
 
 import main.db.DbUtil;
@@ -52,8 +53,9 @@ public class UserService {
 			// 1. 트랜잭션 시작 (Auto-Commit 비활성화)
 			conn.setAutoCommit(false);
 
-			// 2. 비즈니스 로직 수행
-			Account groupAccount = Account.createGroup(0, name);
+			String accountNumber = generateUniqueAccountNumber();
+
+			Account groupAccount = Account.createGroup(0, accountNumber, name);
 			Account savedAccount = accountRepository.save(groupAccount, conn); // Connection 객체 전달
 
 			GroupMember owner = GroupMember.join(0, savedAccount.getId(), creatorUserId, MemberRole.OWNER);
@@ -102,6 +104,23 @@ public class UserService {
 
 		if (!EMAIL_PATTERN.matcher(email).matches()) {
 			throw new IllegalArgumentException("올바른 이메일 형식이 아닙니다.");
+		}
+	}
+
+	private String generateUniqueAccountNumber() {
+		Random random = new Random();
+
+		while (true) {
+			String part1 = String.format("%03d", random.nextInt(1000));
+			String part2 = String.format("%06d", random.nextInt(1000000));
+			String accountNumber = "110-" + part1 + "-" + part2;
+
+			boolean isDuplicate = accountRepository.findByAccountNumber(accountNumber).isPresent();
+
+			if (!isDuplicate) {
+				return accountNumber;
+			}
+
 		}
 	}
 }
