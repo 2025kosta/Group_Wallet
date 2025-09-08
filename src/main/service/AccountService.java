@@ -1,9 +1,9 @@
 package main.service;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import main.db.DbUtil;
 import main.domain.Account;
@@ -28,6 +28,13 @@ public class AccountService {
 
 	public List<Account> findMyAccounts(long userId) {
 		return accountRepository.findAllByUserId(userId);
+	}
+
+	public List<Account> findMyGroupAccounts(long userId) {
+		List<Account> allMyAccounts = accountRepository.findAllByUserId(userId);
+
+		return allMyAccounts.stream().filter(account -> account.getType() == AccountType.GROUP)
+				.collect(Collectors.toList());
 	}
 
 	public void createGroupAccount(String name, long creatorUserId) {
@@ -75,16 +82,25 @@ public class AccountService {
 		}
 	}
 
-	public void updateName(long accountId, String newName) {
-		String sql = "UPDATE account SET name = ? WHERE id = ?";
-		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
-			pstmt.setString(1, newName);
-			pstmt.setLong(2, accountId);
-			pstmt.executeUpdate();
-		} catch (SQLException e) {
-			e.printStackTrace();
-			throw new RuntimeException("계좌 이름 변경 중 오류 발생", e);
+	public void changeAccountName(long accountId, String newName, long currentUserId) {
+		Account account = accountRepository.findById(accountId)
+				.orElseThrow(() -> new IllegalArgumentException("해당 계좌를 찾을 수 없습니다."));
+
+		boolean hasPermission = false;
+		if (account.getType() == AccountType.PERSONAL) {
+			if (account.getOwnerUserId().equals(currentUserId)) {
+				hasPermission = true;
+			}
+		} else {
+			if (groupRepository.isOwner(accountId, currentUserId)) {
+				hasPermission = true;
+			}
 		}
+
+		if (!hasPermission) {
+			throw new IllegalStateException("계좌 이름을 변경할 권한이 없습니다.");
+		}
+		accountRepository.updateName(accountId, newName);
 	}
 
 	public void deleteAccount(long accountId, long currentUserId) {

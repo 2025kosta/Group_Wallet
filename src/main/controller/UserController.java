@@ -56,6 +56,28 @@ public class UserController {
 		}
 	}
 
+	public boolean deleteCurrentUser() {
+		System.out.println("\n----- [🗑️ 회원 탈퇴] -----");
+		System.out.println("⚠️ 경고: 회원 탈퇴 시 모든 계좌와 거래 내역이 영구적으로 삭제됩니다.");
+		System.out.print("정말로 탈퇴하시겠습니까? (y/n): ");
+		String confirmation = scanner.nextLine();
+
+		if (!"y".equalsIgnoreCase(confirmation)) {
+			System.out.println("📢 회원 탈퇴가 취소되었습니다.");
+			return false;
+		}
+
+		try {
+			userService.deleteUser(currentUser.getId());
+			System.out.println("✅ 회원 탈퇴가 완료되었습니다. 이용해주셔서 감사합니다.");
+			this.currentUser = null; // 현재 사용자 정보 초기화
+			return true;
+		} catch (Exception e) {
+			System.err.println("❌ 탈퇴 처리 중 오류가 발생했습니다: " + e.getMessage());
+			return false;
+		}
+	}
+
 	public User getCurrentUser() {
 		return this.currentUser;
 	}

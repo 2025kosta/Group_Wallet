@@ -147,6 +147,18 @@ public class AccountRepository {
 		return Optional.empty();
 	}
 
+	public void updateName(long accountId, String newName) {
+		String sql = "UPDATE account SET name = ? WHERE id = ?";
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setString(1, newName);
+			pstmt.setLong(2, accountId);
+			pstmt.executeUpdate();
+		} catch (SQLException e) {
+			e.printStackTrace();
+			throw new RuntimeException("계좌 이름 변경 중 오류 발생", e);
+		}
+	}
+
 	private Account mapRowToAccount(ResultSet rs) throws SQLException {
 		long id = rs.getLong("id");
 		AccountType type = AccountType.valueOf(rs.getString("type"));
