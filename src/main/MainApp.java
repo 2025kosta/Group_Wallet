@@ -27,14 +27,13 @@ public class MainApp {
 				userController.createUser();
 				break;
 			case "2":
-				// 로그인 성공 시, 로그인된 사용자의 메뉴 루프로 진입
 				if (userController.login()) {
 					showLoggedInMenu(scanner, userController);
 				}
 				break;
 			case "0":
 				System.out.println("\n✅ 시스템을 종료합니다.");
-				return; // 프로그램 종료
+				return;
 			default:
 				System.out.println("\n❗ 잘못된 번호입니다. 다시 입력해주세요.");
 			}
@@ -59,7 +58,10 @@ public class MainApp {
 			case "1" -> accountController.showMenu();
 			case "2" -> groupController.showMenu();
 
-			case "0" -> System.out.println("\n✅ 로그아웃되었습니다.");
+			case "0" -> {
+				System.out.println("\n✅ 로그아웃되었습니다.");
+				return;
+			}
 			default -> System.out.println("\n❗ 잘못된 번호입니다. 다시 입력해주세요.");
 			}
 		}
