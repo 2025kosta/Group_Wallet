@@ -228,4 +228,24 @@ public class AccountRepository {
 		}
 	}
 
+	public void increaseBalance(long accountId, long amount, Connection conn) throws SQLException {
+		String sql = "UPDATE account SET balance = balance + ? WHERE id = ?";
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, amount);
+			pstmt.setLong(2, accountId);
+			pstmt.executeUpdate();
+		}
+	}
+
+	/** 같은 Connection을 공유하는 트랜잭션 안에서 잔액 감소 */
+	public void decreaseBalance(long accountId, long amount, Connection conn) throws SQLException {
+		String sql = "UPDATE account SET balance = balance - ? WHERE id = ?";
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, amount);
+			pstmt.setLong(2, accountId);
+			pstmt.executeUpdate();
+		}
+	}
+
+
 }

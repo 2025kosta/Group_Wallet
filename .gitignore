@@ -4,6 +4,13 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+# Java build outputs
+*.class
+/out/
+/bin/
+/target/
+/build/
+
 ### STS ###
 .apt_generated
 .classpath
@@ -18,7 +25,6 @@ target/
 *.iws
 *.iml
 *.ipr
-/out/
 
 ### Eclipse ###
 .metadata
@@ -32,6 +38,8 @@ local.properties
 .settings/s
 .loadpath
 .recommenders
+.settings/
+
 
 ### NetBeans ###
 /nbproject/private/

@@ -22,9 +22,74 @@ public class TransactionService {
     private final CardRepository cardRepository = new CardRepository();
     private final TransactionRepository txRepository = new TransactionRepository();
 
-    /** 카드 지출 */
-    // TransactionService 내 교체
-    public void addExpenseCard(long cardId, long amount, String memo, LocalDateTime occurredAt, long createdByUserId) {
+    /* ===================== OTHER: 수입 ===================== */
+    public void addIncomeOther(long accountId, long amount, String memo,
+                               LocalDateTime occurredAt, long createdByUserId) {
+        if (amount <= 0) throw new IllegalArgumentException("금액은 0보다 커야 합니다.");
+
+        Connection conn = null;
+        try {
+            conn = DbUtil.getConnection();
+            conn.setAutoCommit(false);
+
+            // 같은 커넥션에서 계좌 잠금(일관성 보장)
+            Account acc = accountRepository.findByIdForUpdate(accountId, conn)
+                    .orElseThrow(() -> new IllegalArgumentException("계좌를 찾을 수 없습니다."));
+
+            Timestamp ts = Timestamp.valueOf(occurredAt == null ? LocalDateTime.now() : occurredAt);
+
+            // 거래 저장(IN / OTHER)
+            txRepository.insertIncomeOther(accountId, amount, memo, ts, createdByUserId, conn);
+
+            // 잔액 증가 (같은 커넥션)
+            accountRepository.increaseBalance(accountId, amount, conn);
+
+            conn.commit();
+        } catch (Exception e) {
+            rollbackQuietly(conn);
+            throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException("거래 저장 오류", e);
+        } finally {
+            restoreAndClose(conn);
+        }
+    }
+
+    /* ===================== OTHER: 지출 ===================== */
+    public void addExpenseOther(long accountId, long amount, String memo,
+                                LocalDateTime occurredAt, long createdByUserId) {
+        if (amount <= 0) throw new IllegalArgumentException("금액은 0보다 커야 합니다.");
+
+        Connection conn = null;
+        try {
+            conn = DbUtil.getConnection();
+            conn.setAutoCommit(false);
+
+            // 잠금 + 현재 잔액 확인
+            Account acc = accountRepository.findByIdForUpdate(accountId, conn)
+                    .orElseThrow(() -> new IllegalArgumentException("계좌를 찾을 수 없습니다."));
+            if (acc.getBalance() < amount) {
+                throw new IllegalStateException("잔액이 부족합니다.");
+            }
+
+            Timestamp ts = Timestamp.valueOf(occurredAt == null ? LocalDateTime.now() : occurredAt);
+
+            // 거래 저장(OUT / OTHER)
+            txRepository.insertExpenseOther(accountId, amount, memo, ts, createdByUserId, conn);
+
+            // 잔액 감소
+            accountRepository.decreaseBalance(accountId, amount, conn);
+
+            conn.commit();
+        } catch (Exception e) {
+            rollbackQuietly(conn);
+            throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException("거래 저장 오류", e);
+        } finally {
+            restoreAndClose(conn);
+        }
+    }
+
+    /* ===================== CARD: 지출 ===================== */
+    public void addExpenseCard(long cardId, long amount, String memo,
+                               LocalDateTime occurredAt, long createdByUserId) {
         if (amount <= 0) throw new IllegalArgumentException("금액은 0보다 커야 합니다.");
 
         Card card = cardRepository.findById(cardId)
@@ -37,101 +102,94 @@ public class TransactionService {
         Connection conn = null;
         try {
             conn = DbUtil.getConnection();
-            conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
             conn.setAutoCommit(false);
 
-            // 계좌를 같은 커넥션에서 LOCK 걸고 읽기
+            // 같은 커넥션에서 계좌 잠금 + 잔액확인
             Account acc = accountRepository.findByIdForUpdate(accountId, conn)
                     .orElseThrow(() -> new IllegalArgumentException("계좌를 찾을 수 없습니다."));
+            if (acc.getBalance() < amount) {
+                throw new IllegalStateException("잔액이 부족합니다.");
+            }
 
-            // 거래 저장
-            txRepository.insertExpenseCard(
-                    accountId,
-                    amount,
-                    memo,
-                    java.sql.Timestamp.valueOf(occurredAt),
-                    cardId,
-                    createdByUserId,
-                    conn
-            );
+            Timestamp ts = Timestamp.valueOf(occurredAt == null ? LocalDateTime.now() : occurredAt);
 
-            // 잔액 감소(같은 커넥션)
-            long newBal = acc.getBalance() - amount;
-            accountRepository.updateBalance(accountId, newBal, conn);
+            // 거래 저장(OUT / CARD)
+            txRepository.insertExpenseCard(accountId, amount, memo, ts, cardId, createdByUserId, conn);
+
+            // 잔액 감소 (같은 커넥션)
+            accountRepository.decreaseBalance(accountId, amount, conn);
 
             conn.commit();
-        } catch (RuntimeException | SQLException e) {
-            if (conn != null) try { conn.rollback(); } catch (SQLException ignore) {}
+        } catch (Exception e) {
+            rollbackQuietly(conn);
             throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException("거래 저장 오류", e);
         } finally {
-            if (conn != null) try { conn.setAutoCommit(true); conn.close(); } catch (SQLException ignore) {}
+            restoreAndClose(conn);
         }
     }
 
-
-    /** 이체(동일 transfer_key로 OUT/IN 두 건) */
-    public void transfer(long fromAccountId, long toAccountId, long amount, String memo, long createdByUserId) {
+    /* ===================== TRANSFER: 이체 ===================== */
+    public void transfer(long fromAccountId, long toAccountId, long amount,
+                         String memo, long createdByUserId) {
         if (amount <= 0) throw new IllegalArgumentException("금액은 0보다 커야 합니다.");
         if (fromAccountId == toAccountId) throw new IllegalArgumentException("동일 계좌 간 이체는 불가합니다.");
 
         Connection conn = null;
         try {
             conn = DbUtil.getConnection();
-            conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
             conn.setAutoCommit(false);
 
-            // 같은 커넥션에서 두 계좌를 LOCK
-            Account from = accountRepository.findByIdForUpdate(fromAccountId, conn)
-                    .orElseThrow(() -> new IllegalArgumentException("출금 계좌를 찾을 수 없습니다."));
-            Account to = accountRepository.findByIdForUpdate(toAccountId, conn)
-                    .orElseThrow(() -> new IllegalArgumentException("입금 계좌를 찾을 수 없습니다."));
+            // Deadlock 회피: id 순으로 잠금
+            long firstId = Math.min(fromAccountId, toAccountId);
+            long secondId = Math.max(fromAccountId, toAccountId);
+
+            Account first = accountRepository.findByIdForUpdate(firstId, conn)
+                    .orElseThrow(() -> new IllegalArgumentException("계좌를 찾을 수 없습니다."));
+            Account second = accountRepository.findByIdForUpdate(secondId, conn)
+                    .orElseThrow(() -> new IllegalArgumentException("계좌를 찾을 수 없습니다."));
+
+            Account from = (first.getId() == fromAccountId) ? first : second;
+            Account to   = (first.getId() == toAccountId)   ? first : second;
 
             if (from.getBalance() < amount) {
                 throw new IllegalStateException("출금계좌 잔액이 부족합니다.");
             }
 
-            String key = java.util.UUID.randomUUID().toString();
-            java.sql.Timestamp now = java.sql.Timestamp.valueOf(java.time.LocalDateTime.now());
+            String transferKey = UUID.randomUUID().toString();
+            Timestamp now = Timestamp.valueOf(LocalDateTime.now());
 
-            txRepository.insertTransferOut(fromAccountId, amount, memo, now, key, createdByUserId, conn);
-            txRepository.insertTransferIn(toAccountId, amount, memo, now, key, createdByUserId, conn);
+            // 거래 두 건(OUT/IN)
+            txRepository.insertTransferOut(from.getId(), amount, memo, now, transferKey, createdByUserId, conn);
+            txRepository.insertTransferIn(to.getId(),   amount, memo, now, transferKey, createdByUserId, conn);
 
-            // 같은 커넥션으로 잔액 반영
-            accountRepository.updateBalance(fromAccountId, from.getBalance() - amount, conn);
-            accountRepository.updateBalance(toAccountId,   to.getBalance() + amount,   conn);
+            // 잔액 반영(같은 커넥션)
+            accountRepository.decreaseBalance(from.getId(), amount, conn);
+            accountRepository.increaseBalance(to.getId(),   amount, conn);
 
             conn.commit();
-        } catch (RuntimeException | SQLException e) {
-            if (conn != null) try { conn.rollback(); } catch (SQLException ignore) {}
+        } catch (Exception e) {
+            rollbackQuietly(conn);
             throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException("거래 저장 오류", e);
         } finally {
-            if (conn != null) try { conn.setAutoCommit(true); conn.close(); } catch (SQLException ignore) {}
+            restoreAndClose(conn);
         }
     }
 
-    /** 검색 */
+    /* ===================== 검색 ===================== */
     public List<TransactionListDto> search(long userId, Long accountIdFilter,
                                            LocalDate from, LocalDate to,
                                            Long minAmount, Long maxAmount) {
-        try {
-            return txRepository.search(userId, accountIdFilter, from, to, minAmount, maxAmount);
-        } catch (Exception e) { // 레포가 체크예외 던지면 여기서 포장
-            throw new RuntimeException("거래 검색 오류", e);
-        }
+        return txRepository.search(userId, accountIdFilter, from, to, minAmount, maxAmount);
     }
 
+    /* ===================== 유틸 ===================== */
     private void rollbackQuietly(Connection conn) {
-        if (conn != null) {
-            try { conn.rollback(); } catch (SQLException ignore) {}
-        }
+        if (conn != null) try { conn.rollback(); } catch (SQLException ignore) {}
     }
-
     private void restoreAndClose(Connection conn) {
         if (conn != null) {
-            try {
-                conn.setAutoCommit(true);
-                conn.close();
-            } catch (SQLException ignore) {}
+            try { conn.setAutoCommit(true); } catch (SQLException ignore) {}
+            try { conn.close(); } catch (SQLException ignore) {}
         }
     }
 }

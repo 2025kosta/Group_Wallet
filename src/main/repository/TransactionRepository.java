@@ -18,6 +18,49 @@ import main.enums.TransactionMethod;
 
 public class TransactionRepository {
 
+	// 클래스 내부에 아래 2개 메서드 추가
+
+	/** OTHER-IN */
+	public void insertIncomeOther(long accountId, long amount, String memo, Timestamp occurredAt,
+								  long createdByUserId, Connection conn) {
+		final String sql =
+				"INSERT INTO `transaction` " +
+						"(account_id, kind, method, amount, memo, occurred_at, transfer_key, card_id, created_by_user_id, created_at) " +
+						"VALUES (?, 'IN', 'OTHER', ?, ?, ?, NULL, NULL, ?, CURRENT_TIMESTAMP)";
+
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, accountId);
+			ps.setLong(2, amount);
+			if (memo == null) ps.setNull(3, java.sql.Types.VARCHAR); else ps.setString(3, memo);
+			ps.setTimestamp(4, occurredAt);
+			ps.setLong(5, createdByUserId);
+			ps.executeUpdate();
+		} catch (SQLException e) {
+			throw new RuntimeException("수입(OTHER) 저장 오류", e);
+		}
+	}
+
+	/** OTHER-OUT */
+	public void insertExpenseOther(long accountId, long amount, String memo, Timestamp occurredAt,
+								   long createdByUserId, Connection conn) {
+		final String sql =
+				"INSERT INTO `transaction` " +
+						"(account_id, kind, method, amount, memo, occurred_at, transfer_key, card_id, created_by_user_id, created_at) " +
+						"VALUES (?, 'OUT', 'OTHER', ?, ?, ?, NULL, NULL, ?, CURRENT_TIMESTAMP)";
+
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, accountId);
+			ps.setLong(2, amount);
+			if (memo == null) ps.setNull(3, java.sql.Types.VARCHAR); else ps.setString(3, memo);
+			ps.setTimestamp(4, occurredAt);
+			ps.setLong(5, createdByUserId);
+			ps.executeUpdate();
+		} catch (SQLException e) {
+			throw new RuntimeException("지출(OTHER) 저장 오류", e);
+		}
+	}
+
+
 	// CARD 지출(단일행 OUT)
 	public void insertExpenseCard(long accountId, long amount, String memo, Timestamp occurredAt, long cardId,
 			Long createdByUserId, Connection conn) {
