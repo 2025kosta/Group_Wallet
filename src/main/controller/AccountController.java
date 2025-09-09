@@ -33,13 +33,15 @@ public class AccountController {
 			String choice = scanner.nextLine().trim();
 
 			switch (choice) {
-				case "1" -> viewAllMyAccounts();
-				case "2" -> createPersonalAccount();
-				case "3" -> createGroupAccount();
-				case "4" -> changeAccountName();
-				case "5" -> deleteAccount();
-				case "0" -> { return; }
-				default -> System.out.println("❗ 잘못된 입력입니다.");
+			case "1" -> viewAllMyAccounts();
+			case "2" -> createPersonalAccount();
+			case "3" -> createGroupAccount();
+			case "4" -> changeAccountName();
+			case "5" -> deleteAccount();
+			case "0" -> {
+				return;
+			}
+			default -> System.out.println("❗ 잘못된 입력입니다.");
 			}
 		}
 	}
@@ -68,7 +70,9 @@ public class AccountController {
 			System.out.println("\n----- [👥 모임통장 생성] -----");
 			System.out.print("모임통장 이름: ");
 			String name = scanner.nextLine();
-			accountService.createGroupAccount(name, currentUser.getId());
+			System.out.print("초기 입금액 (숫자만 입력): ");
+			long initialBalance = Long.parseLong(scanner.nextLine());
+			accountService.createGroupAccount(name, currentUser.getId(), initialBalance);
 			System.out.println("✅ 모임통장 '" + name + "' 생성이 완료되었습니다.");
 		} catch (Exception e) {
 			System.err.println("❌ 모임통장 생성 실패: " + e.getMessage());
@@ -80,7 +84,9 @@ public class AccountController {
 			System.out.println("\n----- [✏️ 계좌 이름 변경] -----");
 
 			boolean hasAccounts = displayAndCheckAccounts();
-			if (!hasAccounts) return;
+			if (!hasAccounts) {
+				return;
+			}
 
 			System.out.print("이름을 변경할 계좌의 계좌번호: ");
 			String accountNumber = scanner.nextLine().trim();
@@ -98,7 +104,9 @@ public class AccountController {
 		try {
 			System.out.println("\n----- [🗑️ 계좌 삭제] -----");
 			boolean hasAccounts = displayAndCheckAccounts();
-			if (!hasAccounts) return;
+			if (!hasAccounts) {
+				return;
+			}
 
 			System.out.print("삭제할 계좌의 계좌번호: ");
 			String accountNumber = scanner.nextLine().trim();
@@ -124,17 +132,11 @@ public class AccountController {
 
 		List<String[]> rows = new ArrayList<>();
 		for (Account a : myAccounts) {
-			rows.add(new String[]{
-					a.getAccountNumber(),
-					a.getType().name().equals("PERSONAL") ? "개인" : "모임",
-					a.getName(),
-					String.format("%,d원", a.getBalance())
-			});
+			rows.add(new String[] { a.getAccountNumber(), a.getType().name().equals("PERSONAL") ? "개인" : "모임",
+					a.getName(), String.format("%,d원", a.getBalance()) });
 		}
 		ConsoleTable.printTable("\n----- [🗂️ 계좌 목록 (계좌번호를 확인하세요)] -----",
-				new String[]{"계좌번호","계좌 종류","계좌 이름","잔액"},
-				rows
-		);
+				new String[] { "계좌번호", "계좌 종류", "계좌 이름", "잔액" }, rows);
 		return true;
 	}
 }
