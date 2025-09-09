@@ -1,0 +1,251 @@
+package main.repository;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import main.db.DbUtil;
+import main.domain.Account;
+import main.enums.AccountType;
+
+public class AccountRepository {
+
+	public Account save(Account account) {
+		try (Connection conn = DbUtil.getConnection()) {
+			return save(account, conn);
+		} catch (SQLException e) {
+			System.err.println("계좌 저장(단일) 중 DB 커넥션 오류 발생: " + e.getMessage());
+			e.printStackTrace();
+			throw new RuntimeException(e);
+		}
+	}
+
+	public Account save(Account account, Connection conn) {
+		String sql = "INSERT INTO account (account_number, type, name, owner_user_id, balance, created_at) VALUES (?, ?, ?, ?, ?, ?)";
+
+		try (PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+			pstmt.setString(1, account.getAccountNumber());
+			pstmt.setString(2, account.getType().name());
+			pstmt.setString(3, account.getName());
+			if (account.getOwnerUserId() != null) {
+				pstmt.setLong(4, account.getOwnerUserId());
+			} else {
+				pstmt.setNull(4, Types.BIGINT);
+			}
+
+			pstmt.setLong(5, account.getBalance());
+			pstmt.setTimestamp(6, Timestamp.valueOf(account.getCreatedAt()));
+
+			int affectedRows = pstmt.executeUpdate();
+
+			if (affectedRows == 0) {
+				throw new SQLException("계좌 생성 실패: 영향 받은 행이 없습니다.");
+			}
+
+			try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
+				if (generatedKeys.next()) {
+					long newId = generatedKeys.getLong(1);
+					return Account.fromDB(newId, account.getAccountNumber(), account.getType(), account.getName(),
+							account.getOwnerUserId(), account.getBalance(), account.getCreatedAt());
+				} else {
+					throw new SQLException("계좌 생성 실패: ID를 가져올 수 없습니다.");
+				}
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("계좌 저장(트랜잭션) 중 오류 발생", e);
+		}
+	}
+
+	public Optional<Account> findByAccountNumber(String accountNumber) {
+		String sql = "SELECT * FROM account WHERE account_number = ?";
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setString(1, accountNumber);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				if (rs.next()) {
+					return Optional.of(mapRowToAccount(rs));
+				}
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return Optional.empty();
+	}
+
+	public List<Account> findAllByUserId(long userId) {
+		// 사용자가 직접 소유한 개인 계좌(a.owner_user_id) 또는
+		// 사용자가 멤버로 속한 모임 계좌(gm.user_id)를 모두 조회
+		String sql = "SELECT DISTINCT a.* " + "FROM account a " + "LEFT JOIN group_member gm ON a.id = gm.account_id "
+				+ "WHERE a.owner_user_id = ? OR gm.user_id = ? "
+				+ "ORDER BY FIELD(a.type, 'GROUP', 'PERSONAL'), a.name ASC";
+
+		List<Account> accounts = new ArrayList<>();
+
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+			pstmt.setLong(1, userId);
+			pstmt.setLong(2, userId);
+
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					accounts.add(mapRowToAccount(rs));
+				}
+			}
+		} catch (SQLException e) {
+			System.err.println("사용자의 모든 계좌 조회 중 오류 발생: " + e.getMessage());
+			e.printStackTrace();
+		}
+		return accounts;
+	}
+
+	public boolean hasAnyAccount(long userId) {
+		String sql = "SELECT 1 FROM account a " + "LEFT JOIN group_member gm ON a.id = gm.account_id "
+				+ "WHERE a.owner_user_id = ? OR gm.user_id = ? LIMIT 1";
+
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+			pstmt.setLong(1, userId);
+			pstmt.setLong(2, userId);
+
+			try (ResultSet rs = pstmt.executeQuery()) {
+				return rs.next();
+			}
+		} catch (SQLException e) {
+			System.err.println("사용자의 계좌 존재 여부 확인 중 오류: " + e.getMessage());
+			e.printStackTrace();
+			throw new RuntimeException("사용자의 계좌 존재 여부 확인 중 오류", e);
+		}
+	}
+
+	public Optional<Account> findById(long accountId) {
+		String sql = "SELECT * FROM account WHERE id = ?";
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, accountId);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				if (rs.next()) {
+					return Optional.of(mapRowToAccount(rs));
+				}
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return Optional.empty();
+	}
+
+	public void updateBalance(long accountId, long newBalance) {
+		String sql = "UPDATE account SET balance = ? WHERE id = ?";
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, newBalance);
+			pstmt.setLong(2, accountId);
+			pstmt.executeUpdate();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void deleteById(long accountId) {
+		String sql = "DELETE FROM account WHERE id = ?";
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, accountId);
+			pstmt.executeUpdate();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public Optional<Account> findByNameAndOwnerUserId(String name, long ownerUserId) {
+		String sql = "SELECT * FROM account WHERE owner_user_id = ? AND name = ? AND type = 'PERSONAL'";
+
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+			pstmt.setLong(1, ownerUserId);
+			pstmt.setString(2, name);
+
+			try (ResultSet rs = pstmt.executeQuery()) {
+				if (rs.next()) {
+					return Optional.of(mapRowToAccount(rs));
+				}
+			}
+		} catch (SQLException e) {
+			System.err.println("이름과 소유자로 계좌 조회 중 오류 발생: " + e.getMessage());
+			e.printStackTrace();
+			throw new RuntimeException(e);
+		}
+		return Optional.empty();
+	}
+
+	public void updateName(long accountId, String newName) {
+		String sql = "UPDATE account SET name = ? WHERE id = ?";
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setString(1, newName);
+			pstmt.setLong(2, accountId);
+			pstmt.executeUpdate();
+		} catch (SQLException e) {
+			e.printStackTrace();
+			throw new RuntimeException("계좌 이름 변경 중 오류 발생", e);
+		}
+	}
+
+	private Account mapRowToAccount(ResultSet rs) throws SQLException {
+		long ownerUserIdLong = rs.getLong("owner_user_id");
+		Long ownerUserId = rs.wasNull() ? null : ownerUserIdLong;
+
+		return Account.fromDB(rs.getLong("id"), rs.getString("account_number"),
+				AccountType.valueOf(rs.getString("type")), rs.getString("name"), ownerUserId, rs.getLong("balance"),
+				rs.getTimestamp("created_at").toLocalDateTime());
+	}
+
+	public Optional<Account> findByIdForUpdate(long accountId, Connection conn) {
+		String sql = "SELECT * FROM account WHERE id = ? FOR UPDATE";
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, accountId);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				if (rs.next()) {
+					return Optional.of(mapRowToAccount(rs));
+				}
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("계좌 조회(LOCK) 중 오류", e);
+		}
+		return Optional.empty();
+	}
+
+	public void updateBalance(long accountId, long newBalance, Connection conn) {
+		String sql = "UPDATE account SET balance = ? WHERE id = ?";
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, newBalance);
+			pstmt.setLong(2, accountId);
+			pstmt.executeUpdate();
+		} catch (SQLException e) {
+			throw new RuntimeException("계좌 잔액 업데이트(트랜잭션) 중 오류", e);
+		}
+	}
+
+	public void increaseBalance(long accountId, long amount, Connection conn) throws SQLException {
+		String sql = "UPDATE account SET balance = balance + ? WHERE id = ?";
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, amount);
+			pstmt.setLong(2, accountId);
+			pstmt.executeUpdate();
+		}
+	}
+
+	/** 같은 Connection을 공유하는 트랜잭션 안에서 잔액 감소 */
+	public void decreaseBalance(long accountId, long amount, Connection conn) throws SQLException {
+		String sql = "UPDATE account SET balance = balance - ? WHERE id = ?";
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, amount);
+			pstmt.setLong(2, accountId);
+			pstmt.executeUpdate();
+		}
+	}
+
+
+}
