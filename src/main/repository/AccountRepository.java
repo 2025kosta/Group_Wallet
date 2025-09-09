@@ -28,7 +28,7 @@ public class AccountRepository {
 	}
 
 	public Account save(Account account, Connection conn) {
-		String sql = "INSERT INTO account (type, name, owner_user_id, balance, created_at) VALUES (?, ?, ?, ?, ?)";
+		String sql = "INSERT INTO account (account_number, type, name, owner_user_id, balance, created_at) VALUES (?, ?, ?, ?, ?, ?)";
 
 		try (PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
@@ -36,13 +36,13 @@ public class AccountRepository {
 			pstmt.setString(2, account.getType().name());
 			pstmt.setString(3, account.getName());
 			if (account.getOwnerUserId() != null) {
-				pstmt.setLong(3, account.getOwnerUserId());
+				pstmt.setLong(4, account.getOwnerUserId());
 			} else {
-				pstmt.setNull(3, Types.BIGINT);
+				pstmt.setNull(4, Types.BIGINT);
 			}
 
-			pstmt.setLong(4, account.getBalance());
-			pstmt.setTimestamp(5, Timestamp.valueOf(account.getCreatedAt()));
+			pstmt.setLong(5, account.getBalance());
+			pstmt.setTimestamp(6, Timestamp.valueOf(account.getCreatedAt()));
 
 			int affectedRows = pstmt.executeUpdate();
 
@@ -175,8 +175,11 @@ public class AccountRepository {
 	}
 
 	private Account mapRowToAccount(ResultSet rs) throws SQLException {
+		long ownerUserIdLong = rs.getLong("owner_user_id");
+		Long ownerUserId = rs.wasNull() ? null : ownerUserIdLong;
+
 		return Account.fromDB(rs.getLong("id"), rs.getString("account_number"),
-				AccountType.valueOf(rs.getString("type")), rs.getString("name"), (Long) rs.getObject("owner_user_id"),
-				rs.getLong("balance"), rs.getTimestamp("created_at").toLocalDateTime());
+				AccountType.valueOf(rs.getString("type")), rs.getString("name"), ownerUserId, rs.getLong("balance"),
+				rs.getTimestamp("created_at").toLocalDateTime());
 	}
 }
