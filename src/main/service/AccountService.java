@@ -18,14 +18,42 @@ public class AccountService {
 	private final AccountRepository accountRepository = new AccountRepository();
 	private final GroupRepository groupRepository = new GroupRepository();
 
-	public Account createPersonalAccount(String name, long ownerUserId) {
+	public Account createPersonalAccount(String name, long ownerUserId, long initialBalance) {
+		if (initialBalance < 0) {
+			throw new IllegalArgumentException("초기 입금액은 0보다 작을 수 없습니다.");
+		}
 		accountRepository.findByNameAndOwnerUserId(name, ownerUserId).ifPresent(account -> {
-			// 중복된 계좌가 존재하므로, 에러를 발생시켜 프로세스를 중단시킵니다.
 			throw new IllegalArgumentException("❌ 동일한 이름의 개인계좌가 이미 존재합니다.");
 		});
-		String accountNumber = generateUniqueAccountNumber();
-		Account newAccount = Account.createPersonal(0, accountNumber, name, ownerUserId);
-		return accountRepository.save(newAccount);
+
+		Connection conn = null;
+		try {
+			conn = DbUtil.getConnection();
+			conn.setAutoCommit(false);
+
+			String accountNumber = generateUniqueAccountNumber();
+			Account newAccount = Account.createPersonal(0, accountNumber, name.trim(), ownerUserId);
+			Account savedAccount = accountRepository.save(newAccount, conn);
+
+			conn.commit();
+			return savedAccount;
+		} catch (Exception e) {
+			if (conn != null) {
+				try {
+					conn.rollback();
+				} catch (SQLException ex) {
+				}
+			}
+			throw new RuntimeException("개인 계좌 생성 중 오류 발생", e);
+		} finally {
+			if (conn != null) {
+				try {
+					conn.setAutoCommit(true);
+					conn.close();
+				} catch (SQLException e) {
+				}
+			}
+		}
 	}
 
 	public List<Account> findMyAccounts(long userId) {

@@ -55,21 +55,7 @@ public class AccountController {
 	}
 
 	private void viewAllMyAccounts() {
-		System.out.println("\n----- [🧾 내 모든 계좌 목록] -----");
-		List<Account> myAccounts = accountService.findMyAccounts(currentUser.getId());
-		if (myAccounts.isEmpty()) {
-			System.out.println("📢 조회할 계좌가 없습니다.");
-			return;
-		}
-		System.out.println("----------------------------------------------------------");
-		System.out.printf("%-5s | %-10s | %-20s | %s\n", "ID", "계좌 종류", "계좌 이름", "잔액");
-		System.out.println("----------------------------------------------------------");
-		for (Account account : myAccounts) {
-			String type = account.getType().name().equals("PERSONAL") ? "개인" : "모임";
-			System.out.printf("%-5d | %-10s | %-20s | %,d원\n", account.getId(), type, account.getName(),
-					account.getBalance());
-		}
-		System.out.println("----------------------------------------------------------");
+		displayAndCheckAccounts();
 	}
 
 	private void createPersonalAccount() {
@@ -79,12 +65,11 @@ public class AccountController {
 			String name = scanner.nextLine();
 			System.out.print("초기 입금액 (숫자만 입력): ");
 			long initialBalance = Long.parseLong(scanner.nextLine());
-			accountService.createPersonalAccount(name, currentUser.getId());
-
-			accountService.createPersonalAccount(name, currentUser.getId());
+			accountService.createPersonalAccount(name, currentUser.getId(), initialBalance);
 			System.out.println("✅ 개인 계좌 '" + name + "' 생성이 완료되었습니다.");
 		} catch (Exception e) {
 			System.err.println("❌ 계좌 생성 실패: " + e.getMessage());
+			e.printStackTrace();
 		}
 	}
 
@@ -146,23 +131,20 @@ public class AccountController {
 
 	private boolean displayAndCheckAccounts() {
 		List<Account> myAccounts = accountService.findMyAccounts(currentUser.getId());
-
 		if (myAccounts.isEmpty()) {
-			System.out.println("📢 변경 또는 삭제할 계좌가 없습니다.");
+			System.out.println("📢 조회, 변경 또는 삭제할 계좌가 없습니다.");
 			return false;
 		}
-
-		System.out.println("\n----- [🗂️ 계좌 목록 (ID를 확인하세요)] -----");
-		System.out.println("----------------------------------------------------------");
+		System.out.println("\n----- [🗂️ 계좌 목록 (계좌번호를 확인하세요)] -----");
+		System.out.println("-----------------------------------------------------------------");
 		System.out.printf("%-20s | %-10s | %-20s | %s\n", "계좌번호", "계좌 종류", "계좌 이름", "잔액");
-		System.out.println("----------------------------------------------------------");
+		System.out.println("-----------------------------------------------------------------");
 		for (Account account : myAccounts) {
 			String type = account.getType().name().equals("PERSONAL") ? "개인" : "모임";
-			System.out.printf("%-5d | %-10s | %-20s | %,d원\n", account.getAccountNumber(), type, account.getName(),
+			System.out.printf("%-20s | %-10s | %-20s | %,d원\n", account.getAccountNumber(), type, account.getName(),
 					account.getBalance());
 		}
-		System.out.println("----------------------------------------------------------");
-
+		System.out.println("-----------------------------------------------------------------");
 		return true;
 	}
 }
