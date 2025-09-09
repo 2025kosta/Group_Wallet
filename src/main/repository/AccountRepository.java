@@ -105,6 +105,25 @@ public class AccountRepository {
 		return accounts;
 	}
 
+	public boolean hasAnyAccount(long userId) {
+		String sql = "SELECT 1 FROM account a " + "LEFT JOIN group_member gm ON a.id = gm.account_id "
+				+ "WHERE a.owner_user_id = ? OR gm.user_id = ? LIMIT 1";
+
+		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+			pstmt.setLong(1, userId);
+			pstmt.setLong(2, userId);
+
+			try (ResultSet rs = pstmt.executeQuery()) {
+				return rs.next();
+			}
+		} catch (SQLException e) {
+			System.err.println("사용자의 계좌 존재 여부 확인 중 오류: " + e.getMessage());
+			e.printStackTrace();
+			throw new RuntimeException("사용자의 계좌 존재 여부 확인 중 오류", e);
+		}
+	}
+
 	public Optional<Account> findById(long accountId) {
 		String sql = "SELECT * FROM account WHERE id = ?";
 		try (Connection conn = DbUtil.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {

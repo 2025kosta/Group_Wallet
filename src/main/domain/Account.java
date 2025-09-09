@@ -50,8 +50,8 @@ public class Account {
 	}
 
 	/** 모임 계좌 생성(생성자는 GroupMember로 OWNER 등록 필요, 초기 잔액 0) */
-	public static Account createGroup(long id, String accountNumber, String name) {
-		return new Account(id, accountNumber, AccountType.GROUP, name, null, 0L, LocalDateTime.now());
+	public static Account createGroup(long id, String accountNumber, String name, long initialBalance) {
+		return new Account(id, accountNumber, AccountType.GROUP, name, null, initialBalance, LocalDateTime.now());
 	}
 
 	/** 계좌명 변경 */
