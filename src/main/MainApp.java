@@ -3,10 +3,10 @@ package main;
 import java.util.Scanner;
 
 import main.controller.AccountController;
-import main.controller.GroupController;
-import main.controller.UserController;
 import main.controller.CardController;
+import main.controller.GroupController;
 import main.controller.TransactionController;
+import main.controller.UserController;
 import main.domain.User;
 
 public class MainApp {
@@ -25,17 +25,17 @@ public class MainApp {
 			String choice = scanner.nextLine();
 
 			switch (choice) {
-				case "1" -> userController.createUser();
-				case "2" -> {
-					if (userController.login()) {
-						showLoggedInMenu(scanner, userController);
-					}
+			case "1" -> userController.createUser();
+			case "2" -> {
+				if (userController.login()) {
+					showLoggedInMenu(scanner, userController);
 				}
-				case "0" -> {
-					System.out.println("\n✅ 시스템을 종료합니다.");
-					return;
-				}
-				default -> System.out.println("\n❗ 잘못된 번호입니다. 다시 입력해주세요.");
+			}
+			case "0" -> {
+				System.out.println("\n✅ 시스템을 종료합니다.");
+				return;
+			}
+			default -> System.out.println("\n❗ 잘못된 번호입니다. 다시 입력해주세요.");
 			}
 		}
 	}
@@ -57,21 +57,38 @@ public class MainApp {
 			System.out.println("2. 👥 모임통장 관리");
 			System.out.println("3. 💳 카드 관리");
 			System.out.println("4. 💰 거래 기록");
+			System.out.println("5. 🙍 회원 탈퇴");
 			System.out.println("0. 🚪 로그아웃");
 			System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 			System.out.print("👉 선택(번호 입력): ");
 			String choice = scanner.nextLine();
 
 			switch (choice) {
-				case "1" -> accountController.showMenu();
-				case "2" -> groupController.showMenu();
-				case "3" -> cardController.showMenu(currentUser);
-				case "4" -> transactionController.showMenu();
-				case "0" -> {
-					System.out.println("\n✅ 로그아웃되었습니다.");
+			case "1":
+				accountController.showMenu();
+				break;
+			case "2":
+				groupController.showMenu();
+				break;
+			case "3":
+				cardController.showMenu(currentUser);
+				break;
+			case "4":
+				transactionController.showMenu();
+				break;
+			case "5":
+				boolean isDeleted = userController.deleteCurrentUser();
+				if (isDeleted) {
 					return;
 				}
-				default -> System.out.println("\n❗ 잘못된 번호입니다. 다시 입력해주세요.");
+				break;
+
+			case "0":
+				System.out.println("\n✅ 로그아웃되었습니다.");
+				return;
+
+			default:
+				System.out.println("\n❗ 잘못된 번호입니다. 다시 입력해주세요.");
 			}
 		}
 	}
