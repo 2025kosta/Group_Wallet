@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Scanner;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * 거래 기록 컨트롤러
@@ -40,22 +42,132 @@ public class TransactionController {
     public void showMenu() {
         while (true) {
             System.out.println("\n----- [💰 거래 기록] -----");
-            System.out.println("1. 지출(CARD) 추가");
-            System.out.println("2. 이체(TRANSFER)");
-            System.out.println("3. 거래 조회/검색");
+            System.out.println("1. 수입(OTHER) 추가");
+            System.out.println("2. 지출(OTHER) 추가");
+            System.out.println("3. 지출(CARD) 추가");
+            System.out.println("4. 이체(TRANSFER)");
+            System.out.println("5. 거래 조회/검색");
             System.out.println("0. 이전 메뉴");
             System.out.print("👉 선택(번호 입력): ");
             String choice = scanner.nextLine().trim();
 
             switch (choice) {
-                case "1": addExpenseCard(); break;
-                case "2": transfer(); break;
-                case "3": searchTransactions(); break;
+                case "1": addIncomeOther(); break;
+                case "2": addExpenseOther(); break;
+                case "3": addExpenseCard(); break;
+                case "4": transfer(); break;
+                case "5": searchTransactions(); break;
                 case "0": return;
                 default: System.out.println("❗ 잘못된 번호입니다. 다시 입력해주세요.");
             }
         }
     }
+    private void addIncomeOther() {
+        System.out.println("\n----- [💸 수입(OTHER) 추가] -----");
+
+        List<Account> myAccounts = accountService.findMyAccounts(currentUser.getId());
+        if (myAccounts.isEmpty()) {
+            System.out.println("✅ 사용자의 계좌가 없습니다.");
+            return;
+        }
+        Long accountId = pickAccount("입금", myAccounts);
+        if (accountId == null) return;
+
+        System.out.print("금액: ");
+        String amountStr = scanner.nextLine().trim();
+        if (amountStr.isEmpty()) {
+            System.err.println("❌ 처리 실패: 금액은 필수입니다.");
+            return;
+        }
+        long amount;
+        try {
+            amount = Long.parseLong(amountStr);
+            if (amount <= 0) {
+                System.err.println("❌ 처리 실패: 금액은 0보다 커야 합니다.");
+                return;
+            }
+        } catch (NumberFormatException e) {
+            System.err.println("❌ 처리 실패: 금액은 숫자만 입력하세요.");
+            return;
+        }
+
+        System.out.print("메모(선택): ");
+        String memo = scanner.nextLine().trim();
+        if (memo.isEmpty()) memo = null;
+
+        System.out.print("발생 시각 (yyyy-MM-dd HH:mm, 엔터=지금): ");
+        String when = scanner.nextLine().trim();
+        LocalDateTime occurredAt;
+        if (when.isEmpty()) {
+            occurredAt = LocalDateTime.now();
+        } else {
+            try {
+                occurredAt = LocalDateTime.parse(when, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+            } catch (Exception e) {
+                System.err.println("❌ 처리 실패: 날짜/시간 형식이 올바르지 않습니다. 예) 2025-09-09 13:20");
+                return;
+            }
+        }
+
+        try {
+            transactionService.addIncomeOther(accountId, amount, memo, occurredAt, currentUser.getId());
+            System.out.println("✅ 기록이 등록되었습니다.");
+        } catch (Exception e) {
+            System.err.println("❌ 처리 실패: " + e.getMessage());
+        }
+
+    }
+    // 새로 추가: 지출(OTHER)
+    private void addExpenseOther() {
+        System.out.println("\n----- [💸 지출(OTHER) 추가] -----");
+
+        List<Account> myAccounts = accountService.findMyAccounts(currentUser.getId());
+        if (myAccounts.isEmpty()) {
+            System.out.println("✅ 사용자의 계좌가 없습니다.");
+            return;
+        }
+        Long accountId = pickAccount("출금", myAccounts);
+        if (accountId == null) return;
+
+        System.out.print("금액: ");
+        String amountStr = scanner.nextLine().trim();
+        if (amountStr.isEmpty()) { System.err.println("❌ 처리 실패: 금액은 필수입니다."); return; }
+        long amount;
+        try {
+            amount = Long.parseLong(amountStr);
+            if (amount <= 0) { System.err.println("❌ 처리 실패: 금액은 0보다 커야 합니다."); return; }
+        } catch (NumberFormatException e) {
+            System.err.println("❌ 처리 실패: 금액은 숫자만 입력하세요.");
+            return;
+        }
+
+        System.out.print("메모(선택): ");
+        String memo = scanner.nextLine().trim();
+        if (memo.isEmpty()) memo = null;
+
+        System.out.print("발생 시각 (yyyy-MM-dd HH:mm, 엔터=지금): ");
+        String when = scanner.nextLine().trim();
+        LocalDateTime occurredAt;
+        if (when.isEmpty()) {
+            occurredAt = LocalDateTime.now();
+        } else {
+            try {
+                occurredAt = LocalDateTime.parse(when, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+            } catch (Exception e) {
+                System.err.println("❌ 처리 실패: 날짜/시간 형식이 올바르지 않습니다. 예) 2025-09-09 13:20");
+                return;
+            }
+        }
+
+        try {
+            transactionService.addExpenseOther(accountId, amount, memo, occurredAt, currentUser.getId());
+            System.out.println("✅ 기록이 등록되었습니다.");
+        } catch (Exception e) {
+            System.err.println("❌ 처리 실패: " + e.getMessage());
+        }
+    }
+
+
 
     /** 1) 카드 지출 */
     private void addExpenseCard() {
