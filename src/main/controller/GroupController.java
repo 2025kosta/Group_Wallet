@@ -108,24 +108,38 @@ public class GroupController {
 	}
 
 	private void addMember(long accountId) {
-		try {
-			System.out.println("\n----- [📧 멤버 추가] -----");
-			System.out.print("추가할 멤버의 이메일: ");
-			String email = scanner.nextLine();
-			groupService.addMember(accountId, currentUser.getId(), email);
-			System.out.println("✅ 멤버 추가가 완료되었습니다.");
-		} catch (Exception e) {
-			System.err.println("❌ 멤버 추가 실패: " + e.getMessage());
-		}
+		displayMembers(accountId);
 	}
 
 	private void removeMember(long accountId) {
 		try {
 			System.out.println("\n----- [🚫 멤버 제거] -----");
-			System.out.print("제거할 멤버의 이메일: ");
-			String email = scanner.nextLine();
-			groupService.removeMember(accountId, currentUser.getId(), email);
-			System.out.println("✅ 멤버 제거가 완료되었습니다.");
+			List<GroupMemberDto> members = displayMembers(accountId);
+
+			if (members == null || members.isEmpty()) {
+				return;
+			}
+
+			System.out.print("제거할 멤버의 번호: ");
+			int memberSequence = Integer.parseInt(scanner.nextLine());
+
+			if (memberSequence > 0 && memberSequence <= members.size()) {
+				GroupMemberDto memberToRemove = members.get(memberSequence - 1);
+				String targetEmail = memberToRemove.getUserEmail();
+
+				System.out.printf("'%s'님을 정말로 제거하시겠습니까? (y/n): ", memberToRemove.getUserName());
+				if (!"y".equalsIgnoreCase(scanner.nextLine())) {
+					System.out.println("📢 제거가 취소되었습니다.");
+					return;
+				}
+
+				groupService.removeMember(accountId, currentUser.getId(), targetEmail);
+				System.out.println("✅ 멤버 제거가 완료되었습니다.");
+			} else {
+				System.out.println("❗ 잘못된 번호입니다.");
+			}
+		} catch (NumberFormatException e) {
+			System.err.println("❗ 번호는 숫자만 입력해주세요.");
 		} catch (Exception e) {
 			System.err.println("❌ 멤버 제거 실패: " + e.getMessage());
 		}
@@ -134,14 +148,52 @@ public class GroupController {
 	private void changeMemberRole(long accountId) {
 		try {
 			System.out.println("\n----- [👑 멤버 역할 변경] -----");
-			System.out.print("역할을 변경할 멤버의 이메일: ");
-			String email = scanner.nextLine();
-			System.out.print("새로운 역할 (OWNER 또는 MEMBER): ");
-			String roleStr = scanner.nextLine().toUpperCase();
-			groupService.changeMemberRole(accountId, currentUser.getId(), email, roleStr);
-			System.out.println("✅ 역할 변경이 완료되었습니다.");
+			List<GroupMemberDto> members = displayMembers(accountId);
+
+			if (members == null || members.isEmpty()) {
+				return;
+			}
+
+			System.out.print("역할을 변경할 멤버의 번호: ");
+			int memberSequence = Integer.parseInt(scanner.nextLine());
+
+			if (memberSequence > 0 && memberSequence <= members.size()) {
+				GroupMemberDto memberToChange = members.get(memberSequence - 1);
+				String targetEmail = memberToChange.getUserEmail();
+
+				System.out.print("새로운 역할 (OWNER 또는 MEMBER): ");
+				String roleStr = scanner.nextLine().toUpperCase();
+
+				groupService.changeMemberRole(accountId, currentUser.getId(), targetEmail, roleStr);
+				System.out.println("✅ 역할 변경이 완료되었습니다.");
+			} else {
+				System.out.println("❗ 잘못된 번호입니다.");
+			}
+		} catch (NumberFormatException e) {
+			System.err.println("❗ 번호는 숫자만 입력해주세요.");
 		} catch (Exception e) {
 			System.err.println("❌ 역할 변경 실패: " + e.getMessage());
 		}
+	}
+
+	private List<GroupMemberDto> displayMembers(long accountId) {
+		System.out.println("\n----- [👥 멤버 목록] -----");
+		List<GroupMemberDto> members = groupService.findMemberInfoByAccountId(accountId);
+
+		if (members.isEmpty()) {
+			System.out.println("📢 등록된 멤버가 없습니다.");
+			return members;
+		}
+		System.out.println("----------------------------------------------------------");
+		System.out.printf("%-5s | %-20s | %s\n", "번호", "이름", "역할");
+		System.out.println("----------------------------------------------------------");
+
+		int sequence = 1;
+		for (GroupMemberDto memberInfo : members) {
+			System.out.printf("%-5d | %-20s | %s\n", sequence, memberInfo.getUserName(), memberInfo.getRole());
+			sequence++;
+		}
+		System.out.println("----------------------------------------------------------");
+		return members;
 	}
 }
