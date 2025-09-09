@@ -32,7 +32,7 @@ public class AccountService {
 			conn.setAutoCommit(false);
 
 			String accountNumber = generateUniqueAccountNumber();
-			Account newAccount = Account.createPersonal(0, accountNumber, name.trim(), ownerUserId);
+			Account newAccount = Account.createPersonal(0, accountNumber, name.trim(), ownerUserId, initialBalance);
 			Account savedAccount = accountRepository.save(newAccount, conn);
 
 			conn.commit();

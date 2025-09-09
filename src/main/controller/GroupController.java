@@ -96,12 +96,13 @@ public class GroupController {
 			return;
 		}
 		System.out.println("----------------------------------------------------------");
-		System.out.printf("%-5s | %-20s | %s\n", "ID", "이름", "역할");
+		System.out.printf("%-5s | %-20s | %s\n", "번호", "이름", "역할");
 		System.out.println("----------------------------------------------------------");
 
+		int sequence = 1;
 		for (GroupMemberDto memberInfo : members) {
-			System.out.printf("%-5d | %-20s | %s\n", memberInfo.getUserId(), memberInfo.getUserName(),
-					memberInfo.getRole());
+			System.out.printf("%-5d | %-20s | %s\n", sequence, memberInfo.getUserName(), memberInfo.getRole());
+			sequence++;
 		}
 		System.out.println("----------------------------------------------------------");
 	}
