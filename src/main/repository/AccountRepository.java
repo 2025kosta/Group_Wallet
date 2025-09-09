@@ -182,4 +182,31 @@ public class AccountRepository {
 				AccountType.valueOf(rs.getString("type")), rs.getString("name"), ownerUserId, rs.getLong("balance"),
 				rs.getTimestamp("created_at").toLocalDateTime());
 	}
+
+	public Optional<Account> findByIdForUpdate(long accountId, Connection conn) {
+		String sql = "SELECT * FROM account WHERE id = ? FOR UPDATE";
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, accountId);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				if (rs.next()) {
+					return Optional.of(mapRowToAccount(rs));
+				}
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("계좌 조회(LOCK) 중 오류", e);
+		}
+		return Optional.empty();
+	}
+
+	public void updateBalance(long accountId, long newBalance, Connection conn) {
+		String sql = "UPDATE account SET balance = ? WHERE id = ?";
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, newBalance);
+			pstmt.setLong(2, accountId);
+			pstmt.executeUpdate();
+		} catch (SQLException e) {
+			throw new RuntimeException("계좌 잔액 업데이트(트랜잭션) 중 오류", e);
+		}
+	}
+
 }

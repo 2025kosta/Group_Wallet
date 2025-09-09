@@ -5,6 +5,8 @@ import java.util.Scanner;
 import main.controller.AccountController;
 import main.controller.GroupController;
 import main.controller.UserController;
+import main.controller.CardController;
+import main.controller.TransactionController;
 import main.domain.User;
 
 public class MainApp {
@@ -14,7 +16,7 @@ public class MainApp {
 		UserController userController = new UserController(scanner);
 
 		while (true) {
-			System.out.println("\n================= 📊 자산관리 시스템 =================");
+			System.out.println("\n================= 📊 모임통장 시스템 =================");
 			System.out.println("1. 👤 사용자 생성");
 			System.out.println("2. 🔐 로그인");
 			System.out.println("0. ❌ 종료");
@@ -23,19 +25,17 @@ public class MainApp {
 			String choice = scanner.nextLine();
 
 			switch (choice) {
-			case "1":
-				userController.createUser();
-				break;
-			case "2":
-				if (userController.login()) {
-					showLoggedInMenu(scanner, userController);
+				case "1" -> userController.createUser();
+				case "2" -> {
+					if (userController.login()) {
+						showLoggedInMenu(scanner, userController);
+					}
 				}
-				break;
-			case "0":
-				System.out.println("\n✅ 시스템을 종료합니다.");
-				return;
-			default:
-				System.out.println("\n❗ 잘못된 번호입니다. 다시 입력해주세요.");
+				case "0" -> {
+					System.out.println("\n✅ 시스템을 종료합니다.");
+					return;
+				}
+				default -> System.out.println("\n❗ 잘못된 번호입니다. 다시 입력해주세요.");
 			}
 		}
 	}
@@ -45,24 +45,33 @@ public class MainApp {
 		AccountController accountController = new AccountController(scanner, currentUser);
 		GroupController groupController = new GroupController(scanner, currentUser);
 
+		// ✅ 카드 컨트롤러: 기존 시그니처 유지
+		CardController cardController = new CardController(scanner);
+
+		// ✅ 트랜잭션 컨트롤러: (scanner, currentUser) 생성자 + showMenu() 호출로 정리
+		TransactionController transactionController = new TransactionController(scanner, currentUser);
+
 		while (true) {
 			System.out.println("\n================ 📈 메인 메뉴 (" + currentUser.getName() + "님) =================");
 			System.out.println("1. 🏦 계좌 관리");
 			System.out.println("2. 👥 모임통장 관리");
+			System.out.println("3. 💳 카드 관리");
+			System.out.println("4. 💰 거래 기록");
 			System.out.println("0. 🚪 로그아웃");
 			System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 			System.out.print("👉 선택(번호 입력): ");
 			String choice = scanner.nextLine();
 
 			switch (choice) {
-			case "1" -> accountController.showMenu();
-			case "2" -> groupController.showMenu();
-
-			case "0" -> {
-				System.out.println("\n✅ 로그아웃되었습니다.");
-				return;
-			}
-			default -> System.out.println("\n❗ 잘못된 번호입니다. 다시 입력해주세요.");
+				case "1" -> accountController.showMenu();
+				case "2" -> groupController.showMenu();
+				case "3" -> cardController.showMenu(currentUser);
+				case "4" -> transactionController.showMenu();
+				case "0" -> {
+					System.out.println("\n✅ 로그아웃되었습니다.");
+					return;
+				}
+				default -> System.out.println("\n❗ 잘못된 번호입니다. 다시 입력해주세요.");
 			}
 		}
 	}
