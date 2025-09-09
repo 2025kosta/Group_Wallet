@@ -43,8 +43,10 @@ public class Account {
 	}
 
 	/** 개인 계좌 생성 (초기 잔액 0) */
-	public static Account createPersonal(long id, String accountNumber, String name, long ownerUserId) {
-		return new Account(id, accountNumber, AccountType.PERSONAL, name, ownerUserId, 0L, LocalDateTime.now());
+	public static Account createPersonal(long id, String accountNumber, String name, long ownerUserId,
+			long initialBalance) {
+		return new Account(id, accountNumber, AccountType.PERSONAL, name, ownerUserId, initialBalance,
+				LocalDateTime.now());
 	}
 
 	/** 모임 계좌 생성(생성자는 GroupMember로 OWNER 등록 필요, 초기 잔액 0) */
