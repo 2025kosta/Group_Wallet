@@ -1,8 +1,11 @@
 package main.service;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import main.db.DbUtil;
 import main.domain.GroupMember;
 import main.domain.User;
 import main.dto.GroupMemberDto;
@@ -25,63 +28,115 @@ public class GroupService {
 	}
 
 	public void addMember(long accountId, long actionUserId, String memberEmail) {
-		checkOwnerPermission(accountId, actionUserId);
+		Connection conn = null;
+		try {
+			conn = DbUtil.getConnection();
+			conn.setAutoCommit(false);
 
-		User userToAdd = userRepository.findByEmail(memberEmail)
-				.orElseThrow(() -> new IllegalArgumentException("❌ 해당 이메일의 사용자를 찾을 수 없습니다."));
+			var requester = groupRepository.findByAccountIdAndUserId(accountId, actionUserId, conn)
+					.orElseThrow(() -> new SecurityException("작업을 요청한 사용자가 멤버가 아닙니다."));
+			if (!requester.isOwner()) throw new SecurityException("OWNER만 수행할 수 있는 작업입니다.");
 
-		groupRepository.findByAccountIdAndUserId(accountId, userToAdd.getId()).ifPresent(m -> {
-			throw new IllegalArgumentException("❌ 이미 가입된 사용자입니다.");
-		});
+			User userToAdd = userRepository.findByEmail(memberEmail)
+					.orElseThrow(() -> new IllegalArgumentException("❌ 해당 이메일의 사용자를 찾을 수 없습니다."));
 
-		GroupMember newMember = GroupMember.join(0, accountId, userToAdd.getId(), MemberRole.MEMBER);
-		groupRepository.save(newMember);
+			groupRepository.findByAccountIdAndUserId(accountId, userToAdd.getId(), conn).ifPresent(m -> {
+				throw new IllegalArgumentException("❌ 이미 가입된 사용자입니다.");
+			});
+
+			GroupMember newMember = GroupMember.join(0, accountId, userToAdd.getId(), MemberRole.MEMBER);
+			groupRepository.save(newMember, conn);
+
+			conn.commit();
+		} catch (Exception e) {
+			if (conn != null) try { conn.rollback(); } catch (
+					SQLException ignore) {}
+			throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
+		} finally {
+			if (conn != null) {
+				try { conn.setAutoCommit(true); } catch (SQLException ignore) {}
+				try { conn.close(); } catch (SQLException ignore) {}
+			}
+		}
 	}
 
 	public void changeMemberRole(long accountId, long actionUserId, String targetUserEmail, String newRoleStr) {
-		checkOwnerPermission(accountId, actionUserId);
-
-		User targetUser = userRepository.findByEmail(targetUserEmail)
-				.orElseThrow(() -> new IllegalArgumentException("❌ 해당 이메일의 사용자를 찾을 수 없습니다."));
-
-		GroupMember memberToChange = groupRepository.findByAccountIdAndUserId(accountId, targetUser.getId())
-				.orElseThrow(() -> new IllegalArgumentException("❌ 해당 멤버를 찾을 수 없습니다."));
-
-		MemberRole newRole;
+		Connection conn = null;
 		try {
-			newRole = MemberRole.valueOf(newRoleStr);
-		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("❌ 'OWNER' 또는 'MEMBER' 역할만 지정할 수 있습니다.");
-		}
+			conn = DbUtil.getConnection();
+			conn.setAutoCommit(false);
 
-		if (memberToChange.getRole() == newRole) {
-			throw new IllegalStateException("이미 '" + newRole + "' 역할을 가지고 있습니다.");
-		}
+			var requester = groupRepository.findByAccountIdAndUserId(accountId, actionUserId, conn)
+					.orElseThrow(() -> new SecurityException("작업을 요청한 사용자가 멤버가 아닙니다."));
+			if (!requester.isOwner()) throw new SecurityException("OWNER만 수행할 수 있는 작업입니다.");
 
-		if (memberToChange.isOwner() && newRole == MemberRole.MEMBER) {
-			if (groupRepository.countOwnersByAccountId(accountId) <= 1) {
-				throw new IllegalStateException("❌ 마지막 OWNER의 역할은 변경할 수 없습니다.");
+			User targetUser = userRepository.findByEmail(targetUserEmail)
+					.orElseThrow(() -> new IllegalArgumentException("❌ 해당 이메일의 사용자를 찾을 수 없습니다."));
+
+			GroupMember memberToChange = groupRepository.findByAccountIdAndUserId(accountId, targetUser.getId(), conn)
+					.orElseThrow(() -> new IllegalArgumentException("❌ 해당 멤버를 찾을 수 없습니다."));
+
+			MemberRole newRole;
+			try { newRole = MemberRole.valueOf(newRoleStr); }
+			catch (IllegalArgumentException e) { throw new IllegalArgumentException("❌ 'OWNER' 또는 'MEMBER' 역할만 지정할 수 있습니다."); }
+
+			if (memberToChange.getRole() == newRole) {
+				throw new IllegalStateException("이미 '" + newRole + "' 역할을 가지고 있습니다.");
+			}
+
+			if (memberToChange.isOwner() && newRole == MemberRole.MEMBER) {
+				if (groupRepository.countOwnersByAccountId(accountId, conn) <= 1) {
+					throw new IllegalStateException("❌ 마지막 OWNER의 역할은 변경할 수 없습니다.");
+				}
+			}
+
+			groupRepository.updateRole(memberToChange.getId(), newRole, conn);
+
+			conn.commit();
+		} catch (Exception e) {
+			if (conn != null) try { conn.rollback(); } catch (SQLException ignore) {}
+			throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
+		} finally {
+			if (conn != null) {
+				try { conn.setAutoCommit(true); } catch (SQLException ignore) {}
+				try { conn.close(); } catch (SQLException ignore) {}
 			}
 		}
-
-		groupRepository.updateRole(memberToChange.getId(), newRole);
 	}
 
+
 	public void removeMember(long accountId, long actionUserId, String targetUserEmail) {
-		checkOwnerPermission(accountId, actionUserId);
+		Connection conn = null;
+		try {
+			conn = DbUtil.getConnection();
+			conn.setAutoCommit(false);
 
-		User targetUser = userRepository.findByEmail(targetUserEmail)
-				.orElseThrow(() -> new IllegalArgumentException("❌ 해당 이메일의 사용자를 찾을 수 없습니다."));
+			var requester = groupRepository.findByAccountIdAndUserId(accountId, actionUserId, conn)
+					.orElseThrow(() -> new SecurityException("작업을 요청한 사용자가 멤버가 아닙니다."));
+			if (!requester.isOwner()) throw new SecurityException("OWNER만 수행할 수 있는 작업입니다.");
 
-		GroupMember memberToRemove = groupRepository.findByAccountIdAndUserId(accountId, targetUser.getId())
-				.orElseThrow(() -> new IllegalArgumentException("❌ 해당 멤버를 찾을 수 없습니다."));
+			User targetUser = userRepository.findByEmail(targetUserEmail)
+					.orElseThrow(() -> new IllegalArgumentException("❌ 해당 이메일의 사용자를 찾을 수 없습니다."));
 
-		if (memberToRemove.isOwner()) {
-			if (groupRepository.countOwnersByAccountId(accountId) <= 1) {
+			GroupMember memberToRemove = groupRepository.findByAccountIdAndUserId(accountId, targetUser.getId(), conn)
+					.orElseThrow(() -> new IllegalArgumentException("❌ 해당 멤버를 찾을 수 없습니다."));
+
+			if (memberToRemove.isOwner() && groupRepository.countOwnersByAccountId(accountId, conn) <= 1) {
 				throw new IllegalStateException("❌ 마지막 OWNER는 제거할 수 없습니다.");
 			}
+
+			groupRepository.delete(memberToRemove.getId(), conn);
+
+			conn.commit();
+		} catch (Exception e) {
+			if (conn != null) try { conn.rollback(); } catch (SQLException ignore) {}
+			throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
+		} finally {
+			if (conn != null) {
+				try { conn.setAutoCommit(true); } catch (SQLException ignore) {}
+				try { conn.close(); } catch (SQLException ignore) {}
+			}
 		}
-		groupRepository.delete(memberToRemove.getId());
 	}
 
 	public List<GroupMember> getGroupMembers(long accountId) {

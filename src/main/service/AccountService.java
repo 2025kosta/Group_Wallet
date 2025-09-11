@@ -132,29 +132,42 @@ public class AccountService {
 	}
 
 	public void deleteAccount(String accountNumber, long currentUserId) {
-		Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(
-				() -> new IllegalArgumentException("❌ 해당 계좌를 찾을 수 없습니다. (account number: " + accountNumber + ")"));
+		Connection conn = null;
+		try {
+			conn = DbUtil.getConnection();
+			conn.setAutoCommit(false);
 
-		boolean hasPermission = false;
-		if (account.getType() == AccountType.PERSONAL) {
-			if (account.getOwnerUserId().equals(currentUserId)) {
-				hasPermission = true;
+			// 1) 계좌 잠금
+			Account account = accountRepository.findByAccountNumberForUpdate(accountNumber, conn)
+					.orElseThrow(() -> new IllegalArgumentException("❌ 해당 계좌를 찾을 수 없습니다. (account number: " + accountNumber + ")"));
+
+			// 2) 권한 확인 (같은 커넥션)
+			boolean hasPermission;
+			if (account.getType() == AccountType.PERSONAL) {
+				hasPermission = account.getOwnerUserId() != null && account.getOwnerUserId().equals(currentUserId);
+			} else {
+				hasPermission = groupRepository.isOwner(account.getId(), currentUserId, conn);
 			}
-		} else {
-			if (groupRepository.isOwner(account.getId(), currentUserId)) {
-				hasPermission = true;
+			if (!hasPermission) throw new IllegalStateException("❌ 계좌를 삭제할 권한이 없습니다.");
+
+			// 3) 거래 존재 여부 확인 (같은 커넥션)
+			if (transactionRepository.existsByAccountId(account.getId(), conn)) {
+				throw new IllegalStateException("❌ 연결된 거래 내역이 있어 계좌를 삭제할 수 없습니다.");
+			}
+
+			// 4) 삭제
+			accountRepository.deleteById(account.getId(), conn);
+
+			conn.commit();
+		} catch (Exception e) {
+			if (conn != null) try { conn.rollback(); } catch (SQLException ignore) {}
+			throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
+		} finally {
+			if (conn != null) {
+				try { conn.setAutoCommit(true); } catch (SQLException ignore) {}
+				try { conn.close(); } catch (SQLException ignore) {}
 			}
 		}
-
-		if (!hasPermission) {
-			throw new IllegalStateException("❌ 계좌를 삭제할 권한이 없습니다.");
-		}
-
-		if (transactionRepository.existsByAccountId(account.getId())) {
-			throw new IllegalStateException("❌ 연결된 거래 내역이 있어 계좌를 삭제할 수 없습니다.");
-		}
-
-		accountRepository.deleteById(account.getId());
 	}
 
 	private String generateUniqueAccountNumber() {

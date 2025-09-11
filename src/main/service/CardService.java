@@ -1,9 +1,12 @@
 package main.service;
 
+import main.db.DbUtil;
 import main.domain.Card;
 import main.enums.CardStatus;
 import main.repository.CardRepository;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.Comparator;
 import java.util.List;
 
@@ -41,12 +44,32 @@ public class CardService {
     }
 
     /** 삭제(연계 거래 존재 시 차단) */
+    // CardService.java (교체: delete)
+
     public void delete(long cardId) {
-        if (cardRepository.existsTransactionByCardId(cardId)) {
-            throw new IllegalStateException("연결된 거래가 있어 카드를 삭제할 수 없습니다.");
+        Connection conn = null;
+        try {
+            conn = DbUtil.getConnection();
+            conn.setAutoCommit(false);
+
+            if (cardRepository.existsTransactionByCardId(cardId, conn)) {
+                throw new IllegalStateException("연결된 거래가 있어 카드를 삭제할 수 없습니다.");
+            }
+            cardRepository.deleteById(cardId, conn);
+
+            conn.commit();
+        } catch (Exception e) {
+            if (conn != null) try { conn.rollback(); } catch (
+                    SQLException ignore) {}
+            throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
+        } finally {
+            if (conn != null) {
+                try { conn.setAutoCommit(true); } catch (SQLException ignore) {}
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
         }
-        cardRepository.deleteById(cardId);
     }
+
 
     // 널/대소문자 안정화용
     private String safeBrand(String b) {

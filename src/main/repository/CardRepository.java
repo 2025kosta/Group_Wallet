@@ -150,4 +150,27 @@ public class CardRepository {
     }
 
 
+    public boolean existsTransactionByCardId(long cardId, Connection conn) {
+        String sql = "SELECT 1 FROM `transaction` WHERE card_id = ? LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, cardId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("카드 연계 거래 존재여부(트랜잭션) 확인 오류", e);
+        }
+    }
+
+    public void deleteById(long cardId, Connection conn) {
+        String sql = "DELETE FROM card WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, cardId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("카드 삭제(트랜잭션) 오류", e);
+        }
+    }
+
+
 }

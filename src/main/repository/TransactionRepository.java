@@ -232,4 +232,16 @@ public class TransactionRepository {
 			throw new RuntimeException("거래 내역 확인 중 오류", e);
 		}
 	}
+
+	public boolean existsByAccountId(long accountId, Connection conn) {
+		String sql = "SELECT 1 FROM `transaction` WHERE account_id = ? LIMIT 1";
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, accountId);
+			try (ResultSet rs = ps.executeQuery()) {
+				return rs.next();
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("거래 내역 확인(트랜잭션) 중 오류", e);
+		}
+	}
 }

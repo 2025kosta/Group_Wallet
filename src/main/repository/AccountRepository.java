@@ -248,4 +248,28 @@ public class AccountRepository {
 	}
 
 
+	public Optional<Account> findByAccountNumberForUpdate(String accountNumber, Connection conn) {
+		String sql = "SELECT * FROM account WHERE account_number = ? FOR UPDATE";
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setString(1, accountNumber);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				if (rs.next()) return Optional.of(mapRowToAccount(rs));
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("계좌 조회(LOCK) 중 오류", e);
+		}
+		return Optional.empty();
+	}
+
+	public void deleteById(long accountId, Connection conn) {
+		String sql = "DELETE FROM account WHERE id = ?";
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setLong(1, accountId);
+			pstmt.executeUpdate();
+		} catch (SQLException e) {
+			throw new RuntimeException("계좌 삭제(트랜잭션) 중 오류", e);
+		}
+	}
+
+
 }

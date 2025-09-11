@@ -167,4 +167,65 @@ public class GroupRepository {
 		java.time.LocalDateTime joinedAt = rs.getTimestamp("joined_at").toLocalDateTime();
 		return GroupMember.fromDB(id, accountId, userId, role, joinedAt);
 	}
+
+	public Optional<GroupMember> findByAccountIdAndUserId(long accountId, long userId, Connection conn) {
+		String sql = "SELECT id, account_id, user_id, role, joined_at FROM group_member WHERE account_id = ? AND user_id = ?";
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, accountId);
+			ps.setLong(2, userId);
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) return Optional.of(mapRowToGroupMember(rs));
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("멤버 조회(트랜잭션) 중 오류", e);
+		}
+		return Optional.empty();
+	}
+
+	public long countOwnersByAccountId(long accountId, Connection conn) {
+		String sql = "SELECT COUNT(*) FROM group_member WHERE account_id = ? AND role = 'OWNER'";
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, accountId);
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) return rs.getLong(1);
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("OWNER 수 조회(트랜잭션) 중 오류", e);
+		}
+		return 0;
+	}
+
+	public void updateRole(long memberId, MemberRole newRole, Connection conn) {
+		String sql = "UPDATE group_member SET role = ? WHERE id = ?";
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setString(1, newRole.name());
+			ps.setLong(2, memberId);
+			ps.executeUpdate();
+		} catch (SQLException e) {
+			throw new RuntimeException("멤버 역할 변경(트랜잭션) 중 오류", e);
+		}
+	}
+
+	public void delete(long memberId, Connection conn) {
+		String sql = "DELETE FROM group_member WHERE id = ?";
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, memberId);
+			ps.executeUpdate();
+		} catch (SQLException e) {
+			throw new RuntimeException("멤버 삭제(트랜잭션) 중 오류", e);
+		}
+	}
+
+	public boolean isOwner(long accountId, long userId, Connection conn) {
+		String sql = "SELECT 1 FROM group_member WHERE account_id = ? AND user_id = ? AND role = 'OWNER' LIMIT 1";
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setLong(1, accountId);
+			ps.setLong(2, userId);
+			try (ResultSet rs = ps.executeQuery()) {
+				return rs.next();
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException("OWNER 여부 확인(트랜잭션) 중 오류", e);
+		}
+	}
 }
