@@ -1,3 +1,5 @@
+
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 /* ======================================================================
    Group Wallet 초기 스키마 및 데이터 (init.sql)
    - MySQL 8.0.x
