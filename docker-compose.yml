@@ -1,0 +1,43 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: group_wallet
+      MYSQL_USER: wallet
+      MYSQL_PASSWORD: wallet
+      TZ: Asia/Seoul
+    command: ["--default-authentication-plugin=mysql_native_password",
+              "--character-set-server=utf8mb4",
+              "--collation-server=utf8mb4_unicode_ci"]   # ⇦ 이걸 추천
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/0-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL","mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "3396:3306"
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: group_wallet
+      DB_USER: wallet
+      DB_PASS: wallet            # ← 코드에서 DB_PASS 쓰면 여기도 PASS로
+      JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
+      LANG: "C.UTF-8"
+      LC_ALL: "C.UTF-8"
+      TZ: Asia/Seoul
+    stdin_open: true
+    tty: true
+
+volumes:
+  db_data:
